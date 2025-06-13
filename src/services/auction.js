@@ -1,9 +1,46 @@
 const { Offer } = require('../models');
 const Auction = require('../models/Auction');
 const Deal = require('../models/Deal');
+const cron = require('node-cron');
 
 exports.createAuction = async (createAuction, user_id) => {
   try {
+    if(closing_type === 'auto'){
+      cron.schedule('* * * * *', async () => {
+        const now = new Date();
+
+        const auctionsToFinish = await Auction.findAll({
+          where: {
+            closing_type: 'auto',
+            end_time: { [Op.lte]: now },
+          },
+          include: [Offer],
+        });
+
+        for (const auction of auctionsToFinish) {
+          auction.is_finished = true;
+          await auction.save();
+
+          const bestOffer = auction.Offers?.sort((a, b) => b.percent - a.percent)[0];
+
+          if (bestOffer) {
+            await Deal.create({
+              user_id: bestOffer.user_id,
+              auction_id: auction.id,
+              offer_id: bestOffer.id,
+              percent: bestOffer.percent,
+            });
+          }
+
+          io.emit('auction:finished', {
+            auctionId: auction.id,
+            winner: bestOffer?.user_id || null,
+          });
+        }
+      });
+    } else {
+
+    }
     const auction = await Auction.create({ user_id, ...JSON.parse(createAuction) });
     return auction
   } catch (err) {
