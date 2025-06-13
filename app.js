@@ -63,7 +63,7 @@ io.on('connection', async (socket) => {
     // Пример: пользователь создает аукцион
     socket.on('auction:create', async (auctionData) => {
         try {
-            const auction = await createAuction(auctionData, socket.user.id);
+            const auction = await createAuction(auctionData, socket.user.id, io);
             io.emit('auction:created', auction);
         } catch (error) {
             io.emit('auction:error', error.message);

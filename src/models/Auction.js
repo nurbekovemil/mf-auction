@@ -11,7 +11,11 @@ const Auction = sequelize.define('Auction', {
     type: DataTypes.UUID,
     allowNull: false,
   },
-  winner_id: {
+  winner_user_id: {
+    type: DataTypes.UUID,
+    allowNull: true,
+  },
+  winner_offer_id: {
     type: DataTypes.UUID,
     allowNull: true,
   },
