@@ -7,7 +7,7 @@ const app = express();
 const server = http.createServer(app);
 app.use(express.json());
 const authRoutes = require('./src/routes/authRoutes');
-const { createAuction, getAuctions } = require('./src/services/auction');
+const { createAuction, getAuctions, getActionOffers, getAuctionSelfOffer } = require('./src/services/auction');
 const { createOffer } = require('./src/services/offer');
 app.use('/api/auth', authRoutes);
 
@@ -39,6 +39,20 @@ io.on('connection', async (socket) => {
     console.log(`🟢 Пользователь подключен: ${socket.user.email}`);
     const auctions = await getAuctions();
     socket.emit('auction:all', auctions);
+
+    socket.on('auction:get_offers', async (auction_id) => {
+      try {
+        if(socket.user.role === 'admin' || socket.user.role === 'initiator') {
+          const auction_offers = await getActionOffers(auction_id);
+          io.emit('auction:set_offers', auction_offers);
+        } else {
+          const auction_offers = await getAuctionSelfOffer(auction_id, socket.user.id);
+          io.emit('auction:set_offers', auction_offers);
+        }
+      } catch (error) {
+        io.emit('auction:error', error.message);
+      }
+    })
     
     // Пример: пользователь присоединяется к комнате конкретного аукциона
     socket.on('auction:join', (auction_id) => {

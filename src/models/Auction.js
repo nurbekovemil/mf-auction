@@ -35,6 +35,11 @@ const Auction = sequelize.define('Auction', {
     type: DataTypes.ENUM('open', 'closed', 'finished', 'canceled'),
     defaultValue: 'open',
   },
+  closing_type: {
+    type: DataTypes.ENUM('auto', 'manual'),
+    allowNull: false,
+    defaultValue: 'auto',
+  },
   end_time: {
     type: DataTypes.DATE,
     allowNull: false,

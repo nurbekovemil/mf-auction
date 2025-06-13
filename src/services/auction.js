@@ -23,6 +23,29 @@ exports.getAuctions = async () => {
   }
 };
 
+exports.getAuctionOffers = async (auction_id) => {
+  try {
+    const offers = await Offer.findAll({ where: { auction_id } });
+    console.log('offers', offers)
+    return offers
+  } catch (err) {
+    throw new Error(JSON.stringify({ message: 'Ошибка при получении предложений', error: err.message }));
+  }
+};
+
+exports.getAuctionSelfOffer = async (auction_id, user_id) => {
+  try {
+    const offer = await Offer.findOne({ where: { auction_id, user_id } });
+    console.log(
+      'offer',
+      offer
+    )
+    return offer
+  } catch (err) {
+    throw new Error(JSON.stringify({ message: 'Ошибка при получении предложений', error: err.message }));
+  }
+};
+
 exports.chooseWinner = async (req, res) => {
   const auctionId = req.params.id;
   const { offer_id } = req.body;
