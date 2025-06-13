@@ -6,30 +6,31 @@ const cron = require('node-cron');
 exports.createAuction = async (createAuction, user_id, io) => {
   try {
     if(closing_type === 'auto'){
-      cron.schedule('* * * * *', async () => {
-        const now = new Date();
-        const auctionsToFinish = await Auction.findAll({
-          where: {
-            closing_type: 'auto',
-            end_time: { [Op.lte]: now },
-          },
-          include: [Offer],
-        });
-        for (const auction of auctionsToFinish) {
-          auction.status = 'finished';
-          await auction.save();
-          const bestOffer = auction.Offers?.sort((a, b) => b.percent - a.percent)[0];
-          if (bestOffer) {
-            await Deal.create({ user_id, ...JSON.parse(createAuction) });
-          }
-          io.emit('auction:finished', auction);
-        }
-      });
+      cron.schedule('* * * * *', scheduledAuctions(createAuction, user_id, io));
     }
     const auction = await Auction.create({ user_id, ...JSON.parse(createAuction) });
     return auction
   } catch (err) {
     throw new Error(JSON.stringify({ message: 'Ошибка при создании аукциона', error: err.message }));
+  }
+};
+const scheduledAuctions = async (createAuction, user_id, io) => {
+  const now = new Date();
+  const auctionsToFinish = await Auction.findAll({
+    where: {
+      closing_type: 'auto',
+      end_time: { [Op.lte]: now },
+    },
+    include: [Offer],
+  });
+  for (const auction of auctionsToFinish) {
+    auction.status = 'finished';
+    await auction.save();
+    const bestOffer = auction.Offers?.sort((a, b) => b.percent - a.percent)[0];
+    if (bestOffer) {
+      await Deal.create({ user_id, ...JSON.parse(createAuction) });
+    }
+    io.emit('auction:finished', auction);
   }
 };
 
