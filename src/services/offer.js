@@ -4,7 +4,7 @@ const User = require('../models/User');
 
 exports.createOffer = async (createOffer, user_id) => {
   try {
-    const { auction_id, percent, volume } = createOffer;
+    const { auction_id, percent, volume } = JSON.parse(createOffer);
 
     // Проверка: аукцион существует и открыт
     const auction = await Auction.findByPk(auction_id);

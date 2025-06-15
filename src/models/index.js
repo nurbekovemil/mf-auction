@@ -2,6 +2,7 @@ const User = require('./User');
 const Auction = require('./Auction');
 const Offer = require('./Offer');
 const Deal = require('./Deal');
+const AuctionParticipant = require('./AuctionParticipant');
 
 // User ↔ Offer
 User.hasMany(Offer, { foreignKey: 'user_id', as: 'offers' });
@@ -23,9 +24,26 @@ Offer.hasOne(Auction, { as: 'won_auction', foreignKey: 'winner_offer_id' });
 User.hasMany(Deal, { foreignKey: 'user_id' });
 Auction.hasMany(Deal, { foreignKey: 'auction_id' });
 Offer.hasOne(Deal, { foreignKey: 'offer_id' });
+
+// 🔗 User ↔ Auction (через AuctionParticipant)
+User.belongsToMany(Auction, {
+  through: AuctionParticipant,
+  foreignKey: 'user_id',
+  otherKey: 'auction_id',
+  as: 'joined_auctions',
+});
+
+Auction.belongsToMany(User, {
+  through: AuctionParticipant,
+  foreignKey: 'auction_id',
+  otherKey: 'user_id',
+  as: 'participants',
+});
+
 module.exports = {
   User,
   Offer,
   Auction,
-  Deal
+  Deal,
+  AuctionParticipant
 };

@@ -33,7 +33,7 @@ exports.login = async (req, res) => {
       return res.status(403).json({ message: 'Пользователь не верифицирован администратором' });
     }
 
-    const token = jwt.sign({ id: user.id, role: user.role, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '2h' });
+    const token = jwt.sign({ id: user.id, role: user.role, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '9h' });
 
     res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
   } catch (err) {

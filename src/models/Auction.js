@@ -36,7 +36,7 @@ const Auction = sequelize.define('Auction', {
     allowNull: false,
   },
   status: {
-    type: DataTypes.ENUM('open', 'closed', 'finished', 'canceled'),
+    type: DataTypes.ENUM('open', 'closed', 'finished', 'expired'),
     defaultValue: 'open',
   },
   closing_type: {
@@ -51,5 +51,7 @@ const Auction = sequelize.define('Auction', {
 }, {
   timestamps: true,
 });
+
+
 
 module.exports = Auction;

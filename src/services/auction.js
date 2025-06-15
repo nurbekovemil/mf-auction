@@ -1,37 +1,59 @@
-const { Offer } = require('../models');
+const { Op } = require('sequelize');
+const { Offer, AuctionParticipant } = require('../models');
 const Auction = require('../models/Auction');
 const Deal = require('../models/Deal');
 const cron = require('node-cron');
 
 exports.createAuction = async (createAuction, user_id, io) => {
   try {
-    if(closing_type === 'auto'){
-      cron.schedule('* * * * *', scheduledAuctions(createAuction, user_id, io));
-    }
     const auction = await Auction.create({ user_id, ...JSON.parse(createAuction) });
     return auction
   } catch (err) {
     throw new Error(JSON.stringify({ message: 'Ошибка при создании аукциона', error: err.message }));
   }
 };
-const scheduledAuctions = async (createAuction, user_id, io) => {
-  const now = new Date();
-  const auctionsToFinish = await Auction.findAll({
-    where: {
-      closing_type: 'auto',
-      end_time: { [Op.lte]: now },
-    },
-    include: [Offer],
-  });
-  for (const auction of auctionsToFinish) {
-    auction.status = 'finished';
-    await auction.save();
-    const bestOffer = auction.Offers?.sort((a, b) => b.percent - a.percent)[0];
-    if (bestOffer) {
-      await Deal.create({ user_id, ...JSON.parse(createAuction) });
+exports.scheduledAuctions = () => {
+  cron.schedule('* * * * *', async () => {
+    const now = new Date();
+    const start = Date.now();
+    console.log(`[${new Date().toISOString()}] 🟡 Cron START`);
+    const auctionsToFinish = await Auction.findAll({
+      where: {
+        status: 'open',
+        closing_type: 'auto',
+        end_time: { [Op.lte]: now },
+      },
+      include: [
+        {
+          model: Offer,
+          as: 'offers'
+        }
+      ],
+    });
+    for (const auction of auctionsToFinish) {
+      const bestOffer = auction.offers?.sort((a, b) => b.percent - a.percent)[0];
+      if (bestOffer) {
+        auction.winner_user_id = bestOffer.user_id;
+        auction.winner_offer_id = bestOffer.id;
+        auction.status = 'finished';
+        await Deal.create({
+          auction_id: auction.id,
+          offer_id: bestOffer.id,
+          user_id: bestOffer.user_id,
+          percent: bestOffer.percent,
+          amount: bestOffer.volume
+        });
+      } else {
+        auction.status = 'expired';
+      }
+      await auction.save();
+      console.log(`[${now.toISOString()}] ✅ Авто-завершение проверено`);
+      const end = Date.now();
+      console.log(`[${new Date().toISOString()}] 🟢 Cron END (${end - start}ms)`);
+
     }
-    io.emit('auction:finished', auction);
-  }
+
+  })
 };
 
 exports.getAuctions = async () => {
@@ -58,7 +80,7 @@ exports.getAuctionOffers = async (auction_id) => {
 
 exports.getAuctionSelfOffer = async (auction_id, user_id) => {
   try {
-    const offer = await Offer.findOne({ where: { auction_id, user_id } });
+    const offer = await Offer.findAll({ where: { auction_id, user_id } });
     console.log(
       'offer',
       offer
@@ -69,22 +91,26 @@ exports.getAuctionSelfOffer = async (auction_id, user_id) => {
   }
 };
 
-exports.chooseWinner = async (req, res) => {
-  const auctionId = req.params.id;
-  const { offer_id } = req.body;
-
+exports.joinAuction = async (auction_id, user_id) => {
   try {
-    const auction = await Auction.findByPk(auctionId);
-    if (!auction) return res.status(404).json({ message: 'Аукцион не найден' });
+    return await AuctionParticipant.findOrCreate({
+      where: { user_id, auction_id }
+    });
+  } catch (err) {
+    throw new Error(JSON.stringify({ message: 'Ошибка при присоединении к аукциону', error: err.message }));
+  }
+};
 
-    const offer = await Offer.findOne({ where: { id: offer_id, auction_id: auctionId } });
-    if (!offer) return res.status(400).json({ message: 'Заявка не найдено' });
-
-    // Обновляем победителя
-    auction.winner_id = offer.user_id;
-    auction.status = 'closed';
-    await auction.save();
-
+exports.closeAuction = async (auction_id, offer_id) => {
+  try {
+    const auction = await Auction.findByPk(auction_id);
+    if (!auction) {
+      throw new Error(JSON.stringify({ message: 'Аукцион не найден' }));
+    }
+    const offer = await Offer.findOne({ where: { id: offer_id, auction_id: auction_id } });
+    if (!offer) {
+      throw new Error(JSON.stringify({ message: 'Заявка не найдено' }));
+    }
     const isDeal = await Deal.findOne({ 
       where: { 
         auction_id: auction.id, 
@@ -92,9 +118,17 @@ exports.chooseWinner = async (req, res) => {
         user_id: offer.user_id 
       } 
     });
-    if (isDeal) return res.status(400).json({ message: 'Сделка уже создана' });
+    if (isDeal) {
+      throw new Error(JSON.stringify({ message: 'Вы уже завершили этот аукцион' }));
+    }
+
+    // Обновляем победителя
+    auction.winner_user_id = offer.user_id;
+    auction.winner_offer_id = offer.id;
+    auction.status = 'finished';
+    await auction.save();
     // Создаём сделку
-    await Deal.create({
+    const deal = await Deal.create({
       auction_id: auction.id,
       offer_id: offer.id,
       user_id: offer.user_id,
@@ -102,22 +136,20 @@ exports.chooseWinner = async (req, res) => {
       amount: offer.amount || null
     });
 
-    res.json({ message: 'Аукцион завершен' });
+    return deal
   } catch (error) {
-    res.status(500).json({ message: 'Ошибка при завершении аукциона', error: error.message });
+    throw new Error(JSON.stringify({ message: 'Ошибка при завершении аукциона', error: error.message }));
   }
 };
 
-exports.getAuctionById = async (req, res) => {
+exports.checkForOwnAuction = async (auction_id, user_id) => {
   try {
-    const { id } = req.params;
-
-    const auction = await Auction.findOne({ where: { id } });
-
-    if (!auction) return res.status(404).json({ message: 'Аукцион не найден' });
-
-    res.json(auction);
+    const auction = await Auction.findOne({ where: { id: auction_id, user_id } });
+    if(!auction) {
+      return false
+    }
+    return true
   } catch (err) {
-    res.status(500).json({ message: 'Ошибка при получении аукциона', error: err.message });
+    throw new Error(JSON.stringify({ message: 'Ошибка при проверке аукциона', error: err.message }));
   }
 };
