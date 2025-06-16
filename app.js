@@ -2,8 +2,14 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
+const cors = require('cors');
 const app = express();
 const server = http.createServer(app);
+app.use(cors({
+  origin: '*', 
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 const authRoutes = require('./src/routes/authRoutes');
 app.use('/api/auth', authRoutes);
