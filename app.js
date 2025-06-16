@@ -36,8 +36,8 @@ const io = new Server(server, {
 
 // Middleware для Socket.IO: авторизация через токен
 io.use((socket, next) => {
-  // const token = socket.handshake.auth.token	
-  const token = socket.handshake.headers.auth; // временно для теста
+  const token = socket.handshake.auth.token	
+  // const token = socket.handshake.headers.auth; // временно для теста
   if (!token) {
     return next(new Error('Ошибка аутентификации: отсутствует токен или истек срок действия'));
   }
