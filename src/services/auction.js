@@ -6,7 +6,7 @@ const cron = require('node-cron');
 
 exports.createAuction = async (createAuction, user_id, io) => {
   try {
-    const auction = await Auction.create({ user_id, ...JSON.parse(createAuction) });
+    const auction = await Auction.create({ user_id, ...createAuction });
     return auction
   } catch (err) {
     throw new Error(JSON.stringify({ message: 'Ошибка при создании аукциона', error: err.message }));
