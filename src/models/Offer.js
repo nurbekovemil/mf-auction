@@ -1,13 +1,14 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
+// Offer.js — меняем auction_id → lot_id
 const Offer = sequelize.define('Offer', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
   },
-  auction_id: {
+  lot_id: {
     type: DataTypes.UUID,
     allowNull: false,
   },
@@ -30,5 +31,6 @@ const Offer = sequelize.define('Offer', {
 }, {
   timestamps: true,
 });
+
 
 module.exports = Offer;

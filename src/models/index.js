@@ -3,29 +3,38 @@ const Auction = require('./Auction');
 const Offer = require('./Offer');
 const Deal = require('./Deal');
 const AuctionParticipant = require('./AuctionParticipant');
+const Lot = require('./Lot');
 
-// User ↔ Offer
+// Auction → Lot
+Auction.hasMany(Lot, { foreignKey: 'auction_id', as: 'lots' });
+Lot.belongsTo(Auction, { foreignKey: 'auction_id', as: 'auction' });
+
+// Lot → Offer
+Lot.hasMany(Offer, { foreignKey: 'lot_id', as: 'offers' });
+Offer.belongsTo(Lot, { foreignKey: 'lot_id', as: 'lot' });
+
+// User → Offer
 User.hasMany(Offer, { foreignKey: 'user_id', as: 'offers' });
 Offer.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
-// Auction ↔ Offer
-Auction.hasMany(Offer, { foreignKey: 'auction_id', as: 'offers' });
-Offer.belongsTo(Auction, { foreignKey: 'auction_id', as: 'auction' });
+// Победители по лоту
+Lot.belongsTo(User, { as: 'winner', foreignKey: 'winner_user_id' });
+User.hasMany(Lot, { as: 'won_lots', foreignKey: 'winner_user_id' });
+
+Lot.belongsTo(Offer, { as: 'winner_offer', foreignKey: 'winner_offer_id' });
+Offer.hasOne(Lot, { as: 'won_lot', foreignKey: 'winner_offer_id' });
+
+// Deal связи
 Deal.belongsTo(User, { foreignKey: 'user_id' });
-Deal.belongsTo(Auction, { foreignKey: 'auction_id' });
-Deal.belongsTo(Offer, { foreignKey: 'offer_id' });
-
-Auction.belongsTo(User, { as: 'winner', foreignKey: 'winner_user_id' });
-User.hasMany(Auction, { as: 'won_auctions', foreignKey: 'winner_user_id' });
-
-Auction.belongsTo(Offer, { as: 'winner_offer', foreignKey: 'winner_offer_id' });
-Offer.hasOne(Auction, { as: 'won_auction', foreignKey: 'winner_offer_id' });
-
 User.hasMany(Deal, { foreignKey: 'user_id' });
+
+Deal.belongsTo(Auction, { foreignKey: 'auction_id' });
 Auction.hasMany(Deal, { foreignKey: 'auction_id' });
+
+Deal.belongsTo(Offer, { foreignKey: 'offer_id' });
 Offer.hasOne(Deal, { foreignKey: 'offer_id' });
 
-// 🔗 User ↔ Auction (через AuctionParticipant)
+// User ↔ Auction через участников
 User.belongsToMany(Auction, {
   through: AuctionParticipant,
   foreignKey: 'user_id',
@@ -44,6 +53,7 @@ module.exports = {
   User,
   Offer,
   Auction,
+  Lot,
   Deal,
   AuctionParticipant
 };

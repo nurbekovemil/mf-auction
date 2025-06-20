@@ -1,6 +1,7 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
+// Auction.js — убираем лишнее
 const Auction = sequelize.define('Auction', {
   id: {
     type: DataTypes.UUID,
@@ -9,30 +10,6 @@ const Auction = sequelize.define('Auction', {
   },
   user_id: {
     type: DataTypes.UUID,
-    allowNull: false,
-  },
-  winner_user_id: {
-    type: DataTypes.UUID,
-    allowNull: true,
-  },
-  winner_offer_id: {
-    type: DataTypes.UUID,
-    allowNull: true,
-  },
-  type: {
-    type: DataTypes.ENUM('buy', 'sell'),
-    allowNull: false,
-  },
-  asset: {
-    type: DataTypes.STRING,
-    allowNull: false,
-  },
-  volume: {
-    type: DataTypes.FLOAT,
-    allowNull: false,
-  },
-  currency: {
-    type: DataTypes.STRING,
     allowNull: false,
   },
   status: {
@@ -51,6 +28,7 @@ const Auction = sequelize.define('Auction', {
 }, {
   timestamps: true,
 });
+
 
 
 

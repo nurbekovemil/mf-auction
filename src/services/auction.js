@@ -4,7 +4,7 @@ const Auction = require('../models/Auction');
 const Deal = require('../models/Deal');
 const cron = require('node-cron');
 
-exports.createAuction = async (createAuction, user_id, io) => {
+exports.createAuction = async (createAuction, user_id) => {
   try {
     const auction = await Auction.create({ user_id, ...createAuction });
     return auction
@@ -12,48 +12,117 @@ exports.createAuction = async (createAuction, user_id, io) => {
     throw new Error(JSON.stringify({ message: 'Ошибка при создании аукциона', error: err.message }));
   }
 };
-exports.scheduledAuctions = () => {
+// exports.scheduledAuctions = () => {
+//   cron.schedule('* * * * *', async () => {
+//     const now = new Date();
+//     const auctionsToFinish = await Auction.findAll({
+//       where: {
+//         status: 'open',
+//         closing_type: 'auto',
+//         end_time: { [Op.lte]: now },
+//       },
+//       include: [
+//         {
+//           model: Offer,
+//           as: 'offers'
+//         }
+//       ],
+//     });
+//     for (const auction of auctionsToFinish) {
+//       const bestOffer = auction.offers?.sort((a, b) => b.percent - a.percent)[0];
+//       if (bestOffer) {
+//         auction.winner_user_id = bestOffer.user_id;
+//         auction.winner_offer_id = bestOffer.id;
+//         auction.status = 'finished';
+//         await Deal.create({
+//           auction_id: auction.id,
+//           offer_id: bestOffer.id,
+//           user_id: bestOffer.user_id,
+//           percent: bestOffer.percent,
+//           amount: bestOffer.volume
+//         });
+//       } else {
+//         auction.status = 'expired';
+//       }
+//       await auction.save();
+//       console.log(`[${now.toISOString()}] ✅ Авто-завершение проверено`);
+//     }
+
+//   })
+// };
+const cron = require('node-cron');
+const { Op } = require('sequelize');
+const { Lot, Offer, Deal, Auction } = require('../models');
+
+exports.scheduledLots = () => {
   cron.schedule('* * * * *', async () => {
     const now = new Date();
-    const start = Date.now();
-    console.log(`[${new Date().toISOString()}] 🟡 Cron START`);
-    const auctionsToFinish = await Auction.findAll({
-      where: {
-        status: 'open',
-        closing_type: 'auto',
-        end_time: { [Op.lte]: now },
-      },
-      include: [
-        {
+
+    try {
+      // Находим все лоты, которые нужно завершить
+      const lotsToFinish = await Lot.findAll({
+        where: {
+          status: 'open',
+          closing_type: 'auto',
+          end_time: { [Op.lte]: now }
+        },
+        include: [{
           model: Offer,
-          as: 'offers'
+          as: 'offers',
+          separate: true,
+          order: [['percent', 'DESC']],
+          limit: 1
+        }]
+      });
+
+      for (const lot of lotsToFinish) {
+        try {
+          const bestOffer = lot.offers?.[0];
+
+          if (bestOffer) {
+            lot.winner_user_id = bestOffer.user_id;
+            lot.winner_offer_id = bestOffer.id;
+            lot.status = 'finished';
+
+            await Deal.create({
+              auction_id: lot.auction_id,
+              lot_id: lot.id,
+              offer_id: bestOffer.id,
+              user_id: bestOffer.user_id,
+              percent: bestOffer.percent,
+              amount: bestOffer.volume
+            });
+          } else {
+            lot.status = 'expired';
+          }
+
+          await lot.save();
+
+          // 🔁 Проверка: если все лоты в аукционе завершены, обновим статус аукциона
+          const remaining = await Lot.count({
+            where: {
+              auction_id: lot.auction_id,
+              status: 'open'
+            }
+          });
+
+          if (remaining === 0) {
+            await Auction.update(
+              { status: 'finished' },
+              { where: { id: lot.auction_id } }
+            );
+          }
+
+        } catch (err) {
+          console.error(`[Lot Error] ${lot.id}:`, err.message);
         }
-      ],
-    });
-    for (const auction of auctionsToFinish) {
-      const bestOffer = auction.offers?.sort((a, b) => b.percent - a.percent)[0];
-      if (bestOffer) {
-        auction.winner_user_id = bestOffer.user_id;
-        auction.winner_offer_id = bestOffer.id;
-        auction.status = 'finished';
-        await Deal.create({
-          auction_id: auction.id,
-          offer_id: bestOffer.id,
-          user_id: bestOffer.user_id,
-          percent: bestOffer.percent,
-          amount: bestOffer.volume
-        });
-      } else {
-        auction.status = 'expired';
       }
-      await auction.save();
-      console.log(`[${now.toISOString()}] ✅ Авто-завершение проверено`);
-      const end = Date.now();
-      console.log(`[${new Date().toISOString()}] 🟢 Cron END (${end - start}ms)`);
 
+      console.log(`[${now.toISOString()}] ✅ Лоты авто-завершены`);
+    } catch (err) {
+      console.error('[CRON ERROR]:', err.message);
     }
-
-  })
+  });
 };
 
 exports.getAuctions = async () => {
@@ -61,6 +130,10 @@ exports.getAuctions = async () => {
     const auctions = await Auction.findAll({
       where: { status: 'open' },
       order: [['createdAt', 'DESC']],
+      include: [{
+        model: Lot,
+        as: 'lots'
+      }]
     });
     return auctions
   } catch (err) {
@@ -70,9 +143,25 @@ exports.getAuctions = async () => {
 
 exports.getAuctionOffers = async (auction_id) => {
   try {
-    const offers = await Offer.findAll({ where: { auction_id } });
-    console.log('offers', offers)
-    return offers
+    const lotsWithOffers = await Lot.findAll({
+      where: { auction_id },
+      include: [
+        {
+          model: Offer,
+          as: 'offers',
+          include: [
+            {
+              model: User,
+              as: 'user',
+              attributes: ['id', 'name', 'email'],
+            }
+          ],
+        },
+      ],
+      order: [['createdAt', 'ASC']],
+    });
+
+    return lotsWithOffers;
   } catch (err) {
     throw new Error(JSON.stringify({ message: 'Ошибка при получении предложений', error: err.message }));
   }
@@ -80,12 +169,20 @@ exports.getAuctionOffers = async (auction_id) => {
 
 exports.getAuctionSelfOffer = async (auction_id, user_id) => {
   try {
-    const offer = await Offer.findAll({ where: { auction_id, user_id } });
-    console.log(
-      'offer',
-      offer
-    )
-    return offer
+    const lots = await Lot.findAll({
+      where: { auction_id },
+      attributes: ['id'],
+    });
+    const lotIds = lots.map(lot => lot.id);
+    // Получаем все предложения пользователя по этим лотам
+    const offers = await Offer.findAll({
+      where: {
+        lot_id: { [Op.in]: lotIds },
+        user_id,
+      },
+    });
+
+    return offers;
   } catch (err) {
     throw new Error(JSON.stringify({ message: 'Ошибка при получении предложений', error: err.message }));
   }
