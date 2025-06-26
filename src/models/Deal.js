@@ -11,6 +11,10 @@ const Deal = sequelize.define('Deal', {
     type: DataTypes.UUID,
     allowNull: false
   },
+  lot_id: {
+    type: DataTypes.UUID,
+    allowNull: false
+  },
   offer_id: {
     type: DataTypes.UUID,
     allowNull: false

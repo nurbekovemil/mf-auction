@@ -1,24 +1,24 @@
 const Offer = require('../models/Offer');
 const Auction = require('../models/Auction');
 const User = require('../models/User');
+const { Lot } = require('../models');
 
 exports.createOffer = async (createOffer, user_id) => {
   try {
-    const { auction_id, percent, volume } = createOffer;
+    const { lot_id, percent } = createOffer;
 
     // Проверка: аукцион существует и открыт
-    const auction = await Auction.findByPk(auction_id);
-    if (!auction || auction.status !== 'open') {
-      throw new Error(JSON.stringify({ message: 'Аукцион недоступен' }));
+    const lot = await Lot.findByPk(lot_id);
+    if (!lot || lot.status !== 'open') {
+      throw new Error(JSON.stringify({ message: 'Лот недоступен' }));
     }
-    const isOffer = await Offer.findOne({ where: { auction_id, user_id, percent, volume } });
-    if (isOffer) throw new Error(JSON.stringify({ message: 'Вы уже создали заявку с такими параметрами' }));
+    const isOffer = await Offer.findOne({ where: { lot_id, user_id } });
+    if (isOffer) throw new Error(JSON.stringify({ message: 'Вы уже отправили заявку на этот лот' }));
 
     const offer = await Offer.create({
-      auction_id,
+      lot_id,
       user_id,
       percent,
-      volume,
     });
 
     return offer

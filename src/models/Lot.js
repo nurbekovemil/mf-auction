@@ -12,10 +12,6 @@ const Lot = sequelize.define('Lot', {
     type: DataTypes.UUID,
     allowNull: false,
   },
-  type: {
-    type: DataTypes.ENUM('buy', 'sell'),
-    allowNull: false,
-  },
   asset: {
     type: DataTypes.STRING,
     allowNull: false,
@@ -24,12 +20,12 @@ const Lot = sequelize.define('Lot', {
     type: DataTypes.FLOAT,
     allowNull: false,
   },
-  currency: {
-    type: DataTypes.STRING,
+  percent: {
+    type: DataTypes.FLOAT,
     allowNull: false,
   },
   status: {
-    type: DataTypes.ENUM('open', 'closed', 'finished'),
+    type: DataTypes.ENUM('open', 'closed', 'finished','expired'),
     defaultValue: 'open',
   },
   winner_user_id: {

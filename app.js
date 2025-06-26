@@ -14,20 +14,30 @@ app.use(express.json());
 const authRoutes = require('./src/routes/authRoutes');
 app.use('/api/auth', authRoutes);
 
+const userRoutes = require('./src/routes/userRoutes');
+app.use('/api/user', userRoutes);
+
+const auctionRoutes = require('./src/routes/auctionRoutes');
+app.use('/api/auction', auctionRoutes);
+
 const { 
   createAuction, 
   getAuctions, 
-  getAuctionOffers, 
+  getAuctionLots, 
   getAuctionSelfOffer, 
   joinAuction, 
-  closeAuction,
+  closeAuctionManually,
   checkForOwnAuction,
-  scheduledAuctions
+  scheduledLots,
+  approveParticipant
 } = require('./src/services/auction');
-scheduledAuctions(); // запускаем проверку авто-завершения аукционов
+scheduledLots(); // запускаем проверку авто-завершения аукционов
 const { 
   createOffer 
 } = require('./src/services/offer');
+const {
+  createLot
+} = require('./src/services/lot');
 const { 
   getUsers 
 } = require('./src/services/user');
@@ -63,19 +73,26 @@ const socketAuctionMap = new Map();
 // События
 io.on('connection', async (socket) => {
     console.log(`🟢 Пользователь подключен: ${socket.user.email}`);
-    const auctions = await getAuctions();
-    socket.emit('auction:all', auctions);
     const user_id = socket.user.id;
 
+    socket.on('auction:all', async () => {
+      try {
+        const auctions = await getAuctions(user_id);
+        socket.emit('auction:all', auctions);
+      } catch (error) {
+        io.emit('auction:error', error.message);
+      }
+    })
+    
 
-    socket.on('auction:get_offers', async (auction_id) => {
+    socket.on('auction:get_lots', async (auction_id) => {
       try {
         if(socket.user.role === 'admin' || socket.user.role === 'initiator') {
-          const auction_offers = await getAuctionOffers(auction_id);
-          io.emit('auction:set_offers', auction_offers);
+          const auction_lots = await getAuctionLots(auction_id);
+          io.emit('auction:set_lots', auction_lots);
         } else {
-          const auction_offers = await getAuctionSelfOffer(auction_id, user_id);
-          io.emit('auction:set_offers', auction_offers);
+          const auction_lots = await getAuctionSelfOffer(auction_id, user_id);
+          io.emit('auction:set_lots', auction_lots);
         }
       } catch (error) {
         io.emit('auction:error', error.message);
@@ -98,16 +115,26 @@ io.on('connection', async (socket) => {
     // Пример: пользователь создает аукцион
     socket.on('auction:create', async (auctionData) => {
         try {
-            const auction = await createAuction(auctionData, user_id, io);
+            const auction = await createAuction(auctionData, user_id);
             io.emit('auction:created', auction);
         } catch (error) {
             io.emit('auction:error', error.message);
         }
     });
 
+    socket.on('lot:create', async (lotData) => {
+        try {
+            const lot = await createLot(lotData);
+            io.emit('lot:created', lot);
+        } catch (error) {
+            io.emit('lot:error', error.message);
+        }
+    });
+
     // Пример: пользователь присоединяется к комнате конкретного аукциона
     socket.on('auction:join', async (auction_id) => {
         try {
+
           if (!onlineParticipants.has(auction_id)) {
             onlineParticipants.set(auction_id, new Set());
           }
@@ -129,13 +156,32 @@ io.on('connection', async (socket) => {
         }
     });
 
-    socket.on('auction:close', async (data) => {
+    socket.on('auction:user_status', async (data) => {
       try {
-        const { auction_id, offer_id } = JSON.parse(data);
+        const { auction_id, user_id, status } = data;
+        const current_user_id = socket.user.id;
+        console.log('🟢 approveParticipant', auction_id, user_id, current_user_id, status)
+        const result = await approveParticipant(auction_id, user_id, current_user_id, status);
+        if(result.status === 'approved') {
+          io.to(`auction-${auction_id}`).emit('auction:user_approved', result);
+        }
+        if(result.status === 'rejected') {
+          io.to(`auction-${auction_id}`).emit('auction:user_rejected', result);
+        }
+        console.log('🟢 result', result)
+      } catch (error) {
+        io.emit('auction:error', error.message);
+      }
+    })
+
+    socket.on('auction:close', async (auction_id) => {
+      try {
         const isOwnAuction = await checkForOwnAuction(auction_id, user_id);
+        console.log('🟢 isOwnAuction', isOwnAuction)
+        console.log('🟢 socket.user.role', socket.user.role)
         if(socket.user.role === 'initiator' && isOwnAuction) {
-          await closeAuction(auction_id, offer_id);
-          return io.to(`auction-${auction_id}`).emit('auction:closed');
+          await closeAuctionManually(auction_id);
+          return io.to(`auction-${auction_id}`).emit('auction:closed', auction_id);
         }
         throw new Error('Вы не можете завершить этот аукцион');
       } catch (error) {

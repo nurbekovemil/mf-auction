@@ -1,19 +1,14 @@
 const { Lot, Auction, User, Offer } = require('../models');
 const { Op } = require('sequelize');
 
-exports.createLot = async (auctionId, lotData) => {
+exports.createLot = async (lotData) => {
   try {
     // Проверка, существует ли аукцион
-    const auction = await Auction.findByPk(auctionId);
+    const auction = await Auction.findByPk(lotData.auction_id);
     if (!auction) {
       throw new Error('Аукцион не найден');
     }
-
-    const lot = await Lot.create({
-      ...lotData,
-      auction_id: auctionId,
-    });
-
+    const lot = await Lot.create(lotData);
     return lot;
   } catch (error) {
     throw new Error(error.message);

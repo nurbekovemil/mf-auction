@@ -12,6 +12,18 @@ const Auction = sequelize.define('Auction', {
     type: DataTypes.UUID,
     allowNull: false,
   },
+  type: {
+    type: DataTypes.ENUM('buy', 'sell'),
+    allowNull: false,
+  },
+  asset: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  currency: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
   status: {
     type: DataTypes.ENUM('open', 'closed', 'finished', 'expired'),
     defaultValue: 'open',

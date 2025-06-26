@@ -20,10 +20,6 @@ const Offer = sequelize.define('Offer', {
     type: DataTypes.DECIMAL(5, 2),
     allowNull: false,
   },
-  volume: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-  },
   status: {
     type: DataTypes.ENUM('pending', 'accepted', 'rejected'),
     defaultValue: 'pending',

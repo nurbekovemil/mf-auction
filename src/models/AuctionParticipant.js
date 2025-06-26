@@ -15,6 +15,10 @@ const AuctionParticipant = sequelize.define('AuctionParticipant', {
     type: DataTypes.UUID,
     allowNull: false,
   },
+  status: {
+    type: DataTypes.ENUM('pending', 'approved', 'rejected'),
+    defaultValue: 'pending'
+  },
   joined_at: {
     type: DataTypes.DATE,
     allowNull: false,
