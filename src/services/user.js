@@ -22,7 +22,7 @@ exports.list = async (req, res) => {
   }
 };
 
-exports.update = async (req, res) => {
+exports.updateUserInfo = async (req, res) => {
   const { id } = req.params;
   try {
     const user = await User.findByPk(id);
@@ -39,4 +39,17 @@ exports.update = async (req, res) => {
     res.status(500).json({ message: 'Ошибка при обновлении пользователя', error: error.message });
   }
 }
+
+exports.updateVerify = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findByPk(id);
+    if (!user) return res.status(400).json({ message: 'Пользователь не найден' });
+    await user.update({ is_verified: req.body.is_verified });
+    return res.json({ message: 'Пользователь обновлен' });
+  } catch (error) {
+    res.status(500).json({ message: 'Ошибка при обновлении пользователя', error: error.message });
+  }
+}
+
 

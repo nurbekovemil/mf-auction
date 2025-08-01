@@ -5,6 +5,8 @@ const Deal = require('./Deal');
 const AuctionParticipant = require('./AuctionParticipant');
 const Lot = require('./Lot');
 const UserInfo = require('./UserInfo');
+const File = require('./File');
+const FileType = require('./FileType');
 
 // Auction → Lot
 Auction.hasMany(Lot, { foreignKey: 'auction_id', as: 'lots' });
@@ -25,6 +27,10 @@ User.hasMany(Lot, { as: 'won_lots', foreignKey: 'winner_user_id' });
 // User 
 User.hasOne(UserInfo, { as: 'user_info', foreignKey: 'user_id' });
 UserInfo.belongsTo(User, { as: 'user_info', foreignKey: 'user_id' });
+User.hasMany(File, { as: 'files', foreignKey: 'user_id' });
+
+// File
+File.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 
 Lot.belongsTo(Offer, { as: 'winner_offer', foreignKey: 'winner_offer_id' });
 Offer.hasOne(Lot, { as: 'won_lot', foreignKey: 'winner_offer_id' });
@@ -61,5 +67,7 @@ module.exports = {
   Lot,
   Deal,
   AuctionParticipant,
-  UserInfo
+  UserInfo,
+  File,
+  FileType
 };

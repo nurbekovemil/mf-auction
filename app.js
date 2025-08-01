@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const app = express();
+const path = require('path');
 const server = http.createServer(app);
 app.use(cors({
   origin: '*', 
@@ -20,6 +21,10 @@ app.use('/api/user', userRoutes);
 const auctionRoutes = require('./src/routes/auctionRoutes');
 app.use('/api/auction', auctionRoutes);
 
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+const fileRoutes = require('./src/routes/fileRoutes');
+app.use('/api/file', fileRoutes);
 const { 
   createAuction, 
   getAuctions, 
@@ -52,8 +57,8 @@ const io = new Server(server, {
 
 // Middleware для Socket.IO: авторизация через токен
 io.use((socket, next) => {
-  // const token = socket.handshake.auth.token	
-  const token = socket.handshake.headers.auth; // временно для теста
+  const token = socket.handshake.auth.token	
+  //const token = socket.handshake.headers.auth; // временно для теста
   if (!token) {
     return next(new Error('Ошибка аутентификации: отсутствует токен или истек срок действия'));
   }
@@ -77,7 +82,9 @@ io.on('connection', async (socket) => {
 
     socket.on('auction:all', async () => {
       try {
+		  
         const auctions = await getAuctions(user_id);
+		console.log("teeest")
         socket.emit('auction:all', auctions);
       } catch (error) {
         io.emit('auction:error', error.message);
@@ -87,11 +94,14 @@ io.on('connection', async (socket) => {
 
     socket.on('auction:get_lots', async (auction_id) => {
       try {
+		console.log(auction_id)
         if(socket.user.role === 'admin' || socket.user.role === 'initiator') {
-          const auction_lots = await getAuctionLots(auction_id);
+          let auction_lots = await getAuctionLots(auction_id);
+		  console.log("admin", auction_lots);
           io.emit('auction:set_lots', auction_lots);
         } else {
-          const auction_lots = await getAuctionSelfOffer(auction_id, user_id);
+          let auction_lots = await getAuctionSelfOffer(auction_id, user_id);
+		   console.log("user", auction_lots);
           io.emit('auction:set_lots', auction_lots);
         }
       } catch (error) {
@@ -194,7 +204,7 @@ io.on('connection', async (socket) => {
         try {
             console.log('🟢 Новое предложение:', offerData);
             const offer = await createOffer(offerData, user_id);
-            io.to(`auction-${offerData.auction_id}`).emit('offer:new', offer);
+            io.emit('offer:created', offer);
         } catch (error) {
             io.emit('auction:error', error.message);
         }
