@@ -25,16 +25,8 @@ const Lot = sequelize.define('Lot', {
     allowNull: false,
   },
   status: {
-    type: DataTypes.ENUM('open', 'closed', 'finished','expired'),
+    type: DataTypes.ENUM('open','finished','expired'),
     defaultValue: 'open',
-  },
-  winner_user_id: {
-    type: DataTypes.UUID,
-    allowNull: true,
-  },
-  winner_offer_id: {
-    type: DataTypes.UUID,
-    allowNull: true,
   },
 }, {
   timestamps: true,

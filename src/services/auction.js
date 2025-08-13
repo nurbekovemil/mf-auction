@@ -1,9 +1,10 @@
 const { Op, Sequelize } = require('sequelize');
-const { Lot, Offer, Deal, Auction, AuctionParticipant, User } = require('../models');
+const { Lot, Offer, Deal, Auction, AuctionParticipant, User, UserInfo } = require('../models');
 const cron = require('node-cron');
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
+const sequelize = require('../config/database');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -41,47 +42,52 @@ console.log('🟢 formatted', now.toISOString()); // например: 2025-06-2
           where: { status: 'open' },
           include: [{
             model: Offer,
+            where: { status: 'pending' },
             as: 'offers',
             separate: true,
             order: [['percent', 'DESC']],
-            limit: 1
           }]
         }]
       });
       console.log('🟢 auctions', auctions.length);
       for (const auction of auctions) {
         for (const lot of auction.lots) {
-          try {
-            const bestOffer = lot.offers?.[0];
+          const offers = lot.offers;
 
-            if (bestOffer) {
-              lot.winner_user_id = bestOffer.user_id;
-              lot.winner_offer_id = bestOffer.id;
-              lot.status = 'finished';
-              bestOffer.status = 'finished';
-              await bestOffer.save();
-              await Deal.create({
-                auction_id: auction.id,
-                lot_id: lot.id,
-                offer_id: bestOffer.id,
-                user_id: bestOffer.user_id,
-                percent: bestOffer.percent,
-                amount: bestOffer.volume
-              });
-            } else {
-              lot.status = 'expired';
+          if (!offers.length) continue;
+          const maxPercent = offers[0].percent;
+          const topOffers = offers.filter(offer => offer.percent === maxPercent);
+          // Если больше 2-х лидеров — переводим в ручной режим
+          if (topOffers.length >= 2) {
+            auction.closing_type = 'manual';
+          }
+
+          // Если ровно 1 лидер — добавляем в победители
+          else if (topOffers.length === 1) {
+            const winner = topOffers[0];
+            auction.status = 'finished';
+            lot.status = 'finished';
+            winner.status = 'accepted';
+              // Все остальные заявки — rejected
+            for (const offer of offers) {
+              if (offer.id !== winner.id) {
+                offer.status = 'rejected';
+                await offer.save();
+              }
             }
-
-            await lot.save();
-            console.log(`[${now.toISOString()}] ✅ Аукционы и лоты завершены`);
-          } catch (err) {
-            console.error(`[Lot Error] ${lot.id}:`, err.message);
+            await Deal.create({
+              auction_id: auction.id,
+              lot_id: lot.id,
+              offer_id: winner.id,
+              percent: winner.percent,
+              user_id: winner.user_id,
+              amount: lot.volume
+            });
+            await lot.save()
+            await winner.save();
           }
         }
-
-        // Завершаем аукцион
-        await auction.update({ status: 'finished' });
-
+        await auction.save();
       }
     } catch (err) {
       console.error('[CRON ERROR]:', err.message);
@@ -181,129 +187,82 @@ exports.joinAuction = async (auction_id, user_id) => {
 };
 
 
-exports.closeLotManually = async (lot_id, offer_id) => {
+
+exports.closeLotManually = async (lot_id) => {
+  const t = await sequelize.transaction();
+
   try {
-    // Проверка лота
-    const lot = await Lot.findByPk(lot_id);
-    if (!lot) {
-      throw new Error(JSON.stringify({ message: 'Лот не найден' }));
-    }
+    const lot = await Lot.findByPk(lot_id, { transaction: t });
+    if (!lot) throw new Error(JSON.stringify({ message: 'Лот не найден' }));
 
-    // Проверка оффера
-    const offer = await Offer.findOne({
-      where: {
-        id: offer_id,
-        lot_id: lot.id,
-      },
+    // Получаем все pending-заявки
+    const pendingOffers = await Offer.findAll({
+      where: { lot_id, status: 'pending' },
+      order: [['percent', 'DESC']],
+      transaction: t
     });
-    if (!offer) {
-      throw new Error(JSON.stringify({ message: 'Заявка не найдена' }));
+
+    if (!pendingOffers.length) {
+      lot.status = 'expired';
+      await lot.save({ transaction: t });
+      await t.commit();
+      return { message: 'Нет заявок в этом лоте' };
     }
 
-    // Проверка на дублирующую сделку
-    const isDeal = await Deal.findOne({
-      where: {
+    // Находим максимальный процент
+    const maxPercent = pendingOffers[0].percent;
+
+    // Фильтруем только лидеров
+    const topOffers = pendingOffers.filter(o => o.percent === maxPercent);
+
+    // Делим объём лота между ними
+    const share = lot.volume / topOffers.length;
+
+    for (const offer of topOffers) {
+      offer.status = 'accepted';
+      await offer.save({ transaction: t });
+
+      await Deal.create({
+        auction_id: lot.auction_id,
         lot_id: lot.id,
         offer_id: offer.id,
         user_id: offer.user_id,
-      },
-    });
-    if (isDeal) {
-      throw new Error(JSON.stringify({ message: 'Вы уже завершили этот лот' }));
+        percent: offer.percent,
+        amount: share
+      }, { transaction: t });
     }
 
-    // Обновляем победителя лота
-    lot.winner_user_id = offer.user_id;
-    lot.winner_offer_id = offer.id;
+    // Остальным меняем статус на rejected
+    const losers = pendingOffers.filter(o => o.percent < maxPercent);
+    for (const offer of losers) {
+      offer.status = 'rejected';
+      await offer.save({ transaction: t });
+    }
+
+    // Закрываем лот
     lot.status = 'finished';
-    await lot.save();
+    await lot.save({ transaction: t });
 
-    // Создаём сделку
-    const deal = await Deal.create({
-      auction_id: lot.auction_id,
-      lot_id: lot.id,
-      offer_id: offer.id,
-      user_id: offer.user_id,
-      percent: offer.percent,
-      amount: offer.volume || null
-    });
-
-    // Проверка: все ли лоты завершены — закрываем аукцион
+    // Если все лоты закрыты — закрываем аукцион
     const openLots = await Lot.count({
-      where: {
-        auction_id: lot.auction_id,
-        status: 'open'
-      }
+      where: { auction_id: lot.auction_id, status: 'open' },
+      transaction: t
     });
     if (openLots === 0) {
       await Auction.update(
         { status: 'finished' },
-        { where: { id: lot.auction_id } }
+        { where: { id: lot.auction_id }, transaction: t }
       );
     }
 
-    return deal;
+    await t.commit();
+    return { message: 'Лот закрыт' };
+
   } catch (error) {
+    await t.rollback();
     throw new Error(JSON.stringify({
       message: 'Ошибка при ручном завершении лота',
-      error: error.message,
-    }));
-  }
-};
-
-exports.closeAuctionManually = async (auction_id) => {
-  try {
-    const auction = await Auction.findByPk(auction_id, {
-      include: [{
-        model: Lot,
-        as: 'lots',
-        required: false,
-        where: { status: 'open' },
-        include: [{
-          model: Offer,
-          as: 'offers',
-          separate: true,
-          order: [['percent', 'DESC']],
-          limit: 1
-        }]
-      }]
-    });
-
-    if (!auction) {
-      throw new Error(JSON.stringify({ message: 'Аукцион не найден' }));
-    }
-
-    for (const lot of auction.lots) {
-      const bestOffer = lot.offers?.[0];
-
-      if (bestOffer) {
-        lot.winner_user_id = bestOffer.user_id;
-        lot.winner_offer_id = bestOffer.id;
-        lot.status = 'finished';
-        bestOffer.status = 'accepted';
-        await Deal.create({
-          auction_id: auction.id,
-          lot_id: lot.id,
-          offer_id: bestOffer.id,
-          user_id: bestOffer.user_id,
-          percent: bestOffer.percent,
-          amount: bestOffer.volume
-        });
-        await bestOffer.save();
-      } else {
-        lot.status = 'expired';
-      }
-
-      await lot.save();
-    }
-
-    await auction.update({ status: 'finished' });
-
-    return { message: 'Аукцион завершён' };
-  } catch (error) {
-    throw new Error(JSON.stringify({
-      message: 'Ошибка при завершении аукциона',
-      error: error.message,
+      error: error.message
     }));
   }
 };
@@ -357,31 +316,90 @@ exports.approveParticipant = async (auction_id, user_id, initiator_id, status) =
   }
 };
 
-exports.report = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const auction = await Auction.findByPk(id, {
-      include: [{
+exports.getAuctionReport = async (req, res) => {
+  // Находим аукцион с лотами, офферами и сделками
+  const { id } = req.params;
+  const auction = await Auction.findByPk(id, {
+    include: [
+      {
         model: Lot,
         as: 'lots',
         include: [
           {
             model: Offer,
-            as: 'winner_offer',
-            required: false,
-
+            as: 'offers',
+            include: [
+              {
+                model: User,
+                as: 'user',
+                include: [{ model: UserInfo, as: 'user_info' }]
+              },
+              {
+                model: Deal,
+                include: [
+                  {
+                    model: Offer,
+                    include: [
+                      {
+                        model: User,
+                        as: 'user',
+                        include: [{ model: UserInfo, as: 'user_info' }]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
           },
-          {
-            model: User,
-            as: 'winner',
-            attributes: ['id', 'name'],
-            required: false
-          }
         ]
-      }]
-    });
-    res.json(auction);
-  } catch (error) {
-    res.status(500).json({ message: 'Ошибка при создании отчета', error: error.message });
+      },
+      {
+        model: AuctionParticipant,
+        as: 'participants'
+      }
+    ]
+  });
+
+  if (!auction) {
+    throw new Error('Аукцион не найден');
   }
+
+  // Общая информация
+  const generalInfo = {
+    date: auction.createdAt, // или другое поле с датой
+    totalVolume: auction.lots.reduce((sum, lot) => sum + lot.volume, 0),
+    participantsCount: auction.participants?.length || 0
+  };
+
+  // Ведомость поступивших заявок
+  const offersTable = auction.lots.flatMap(lot =>
+    lot.offers.map(o => ({
+      bank: o.user.user_info?.bank_name || o.user.name,
+      lotNumber: lot.id,
+      depositAmount: o.volume,
+      depositTerm: o.term_months,
+      startPercent: o.percent,
+      combankRate: o.combank_rate
+    }))
+  );
+
+// Итоги размещения
+const dealsTable = auction.lots.flatMap(lot =>
+  (lot.offers || []).flatMap(offer =>
+    (offer.Deal ? [{
+      bank: offer.user?.user_info?.bank_name || offer.user?.name || '—',
+      lotNumber: lot.id,
+      depositAmount: offer.Deal.amount,
+      depositTerm: lot.term_months,
+      startPercent: offer.Deal.percent,
+      combankRate: offer.combank_rate
+    }] : [])
+  )
+);
+
+  return res.json({
+    generalInfo,
+    offersTable,
+    dealsTable
+  });
 };

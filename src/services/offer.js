@@ -1,5 +1,4 @@
 const Offer = require('../models/Offer');
-const Auction = require('../models/Auction');
 const User = require('../models/User');
 const { Lot } = require('../models');
 
@@ -47,4 +46,30 @@ exports.getOffersByAuction = async (req, res) => {
     res.status(500).json({ message: 'Ошибка при получении офферов', error: error.message });
   }
 };
+
+exports.cancelOffer = async(offer_id, user_id) => {
+    try {
+      const offer = await Offer.findOne({
+        where: {
+            id: offer_id,
+            user_id: user_id
+        }
+    });
+
+    if (!offer) {
+        throw new Error('Заявка не найдена или не принадлежит пользователю');
+    }
+
+    if (offer.status !== 'pending') {
+        throw new Error('Заявку нельзя отменить в текущем статусе');
+    }
+
+    offer.status = 'rejected';
+    await offer.save();
+
+    return offer;
+    } catch (error) {
+        throw new Error('Ошибка при отмене заявки: ' + error.message);
+    }
+}
 

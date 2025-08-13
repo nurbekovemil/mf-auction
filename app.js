@@ -31,14 +31,15 @@ const {
   getAuctionLots, 
   getAuctionSelfOffer, 
   joinAuction, 
-  closeAuctionManually,
+  closeLotManually,
   checkForOwnAuction,
   scheduledLots,
   approveParticipant
 } = require('./src/services/auction');
 scheduledLots(); // запускаем проверку авто-завершения аукционов
 const { 
-  createOffer 
+  createOffer,
+  cancelOffer
 } = require('./src/services/offer');
 const {
   createLot
@@ -57,8 +58,8 @@ const io = new Server(server, {
 
 // Middleware для Socket.IO: авторизация через токен
 io.use((socket, next) => {
-  const token = socket.handshake.auth.token	
-  //const token = socket.handshake.headers.auth; // временно для теста
+  // const token = socket.handshake.auth.token	
+  const token = socket.handshake.headers.auth; // временно для теста
   if (!token) {
     return next(new Error('Ошибка аутентификации: отсутствует токен или истек срок действия'));
   }
@@ -184,13 +185,12 @@ io.on('connection', async (socket) => {
       }
     })
 
-    socket.on('auction:close', async (auction_id) => {
+    socket.on('lot:close', async (data) => {
       try {
+        const { auction_id, lot_id } = data;
         const isOwnAuction = await checkForOwnAuction(auction_id, user_id);
-        console.log('🟢 isOwnAuction', isOwnAuction)
-        console.log('🟢 socket.user.role', socket.user.role)
         if(socket.user.role === 'initiator' && isOwnAuction) {
-          await closeAuctionManually(auction_id);
+          await closeLotManually(lot_id);
           return io.to(`auction-${auction_id}`).emit('auction:closed', auction_id);
         }
         throw new Error('Вы не можете завершить этот аукцион');
@@ -205,6 +205,15 @@ io.on('connection', async (socket) => {
             console.log('🟢 Новое предложение:', offerData);
             const offer = await createOffer(offerData, user_id);
             io.emit('offer:created', offer);
+        } catch (error) {
+            io.emit('auction:error', error.message);
+        }
+    });
+    socket.on('offer:cancel', async (offer_id) => {
+        try {
+            console.log('🟡 Отмена предложения:', offer_id);
+            const canceledOffer = await cancelOffer(offer_id, user_id);
+            io.emit('offer:canceled', canceledOffer); // уведомляем всех
         } catch (error) {
             io.emit('auction:error', error.message);
         }

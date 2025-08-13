@@ -12,6 +12,9 @@ const FileType = require('./FileType');
 Auction.hasMany(Lot, { foreignKey: 'auction_id', as: 'lots' });
 Lot.belongsTo(Auction, { foreignKey: 'auction_id', as: 'auction' });
 
+Auction.hasMany(AuctionParticipant, { foreignKey: 'auction_id', as: 'participants' });
+AuctionParticipant.belongsTo(Auction, { foreignKey: 'auction_id', as: 'auction' });
+
 // Lot → Offer
 Lot.hasMany(Offer, { foreignKey: 'lot_id', as: 'offers' });
 Offer.belongsTo(Lot, { foreignKey: 'lot_id', as: 'lot' });
@@ -21,8 +24,8 @@ User.hasMany(Offer, { foreignKey: 'user_id', as: 'offers' });
 Offer.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
 // Победители по лоту
-Lot.belongsTo(User, { as: 'winner', foreignKey: 'winner_user_id' });
-User.hasMany(Lot, { as: 'won_lots', foreignKey: 'winner_user_id' });
+// Lot.belongsTo(User, { as: 'winner', foreignKey: 'winner_user_id' });
+// User.hasMany(Lot, { as: 'won_lots', foreignKey: 'winner_user_id' });
 
 // User 
 User.hasOne(UserInfo, { as: 'user_info', foreignKey: 'user_id' });
@@ -32,8 +35,8 @@ User.hasMany(File, { as: 'files', foreignKey: 'user_id' });
 // File
 File.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
 
-Lot.belongsTo(Offer, { as: 'winner_offer', foreignKey: 'winner_offer_id' });
-Offer.hasOne(Lot, { as: 'won_lot', foreignKey: 'winner_offer_id' });
+// Lot.belongsTo(Offer, { as: 'winner_offer', foreignKey: 'winner_offer_id' });
+// Offer.hasOne(Lot, { as: 'won_lot', foreignKey: 'winner_offer_id' });
 
 // Deal связи
 Deal.belongsTo(User, { foreignKey: 'user_id' });
@@ -46,19 +49,19 @@ Deal.belongsTo(Offer, { foreignKey: 'offer_id' });
 Offer.hasOne(Deal, { foreignKey: 'offer_id' });
 
 // User ↔ Auction через участников
-User.belongsToMany(Auction, {
-  through: AuctionParticipant,
-  foreignKey: 'user_id',
-  otherKey: 'auction_id',
-  as: 'joined_auctions',
-});
+// User.belongsToMany(Auction, {
+//   through: AuctionParticipant,
+//   foreignKey: 'user_id',
+//   otherKey: 'auction_id',
+//   as: 'joined_auctions',
+// });
 
-Auction.belongsToMany(User, {
-  through: AuctionParticipant,
-  foreignKey: 'auction_id',
-  otherKey: 'user_id',
-  as: 'participants',
-});
+// Auction.belongsToMany(User, {
+//   through: AuctionParticipant,
+//   foreignKey: 'auction_id',
+//   otherKey: 'user_id',
+//   as: 'participants',
+// });
 
 module.exports = {
   User,
