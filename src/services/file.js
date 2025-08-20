@@ -1,4 +1,4 @@
-const { File, FileType, User } = require('../models');
+const { File, FileType, User, Auction } = require('../models');
 
 exports.createFile = async (req, res) => {
     const { id } = req.user;
@@ -14,6 +14,7 @@ exports.createFile = async (req, res) => {
         const newFile = await File.create({
             url: filePath,
             file_type: req.body.file_type,
+            auction_id: req.body.auction_id,
             user_id: id
         });
 
@@ -25,9 +26,20 @@ exports.createFile = async (req, res) => {
 exports.getMyFileList = async (req, res) => {
     const { id } = req.user;
     try {
-        const files = await File.findAll({
-            where: { user_id: id }
-        });
+        // const files = await File.findAll({
+        //     where: { user_id: id },
+        //     include: { model: Auction, as: 'auction' }
+        // });
+        const files = await Auction.findAll({
+            attributes: ['id', 'asset'],
+            include: [
+                {
+                    model: File,
+                    as: 'files',
+                    where: { user_id: id },
+                },
+            ],
+        })
         return res.json(files);
     } catch (err) {
         throw new Error(JSON.stringify({ message: 'Ошибка при получении списка файлов', error: err.message }));
@@ -36,9 +48,19 @@ exports.getMyFileList = async (req, res) => {
 exports.getUserFileList = async (req, res) => {
       const { id } = req.params;
     try {
-        const files = await File.findAll({
-            where: { user_id: id }
-        });
+        // const files = await File.findAll({
+        //     where: { user_id: id }
+        // });
+        const files = await Auction.findAll({
+            attributes: ['id', 'asset'],
+            include: [
+                {
+                    model: File,
+                    as: 'files',
+                    where: { user_id: id },
+                },
+            ],
+        })
         return res.json(files);
     } catch (err) {
         throw new Error(JSON.stringify({ message: 'Ошибка при получении списка файлов', error: err.message }));

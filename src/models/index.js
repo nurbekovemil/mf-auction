@@ -14,6 +14,8 @@ Lot.belongsTo(Auction, { foreignKey: 'auction_id', as: 'auction' });
 
 Auction.hasMany(AuctionParticipant, { foreignKey: 'auction_id', as: 'participants' });
 AuctionParticipant.belongsTo(Auction, { foreignKey: 'auction_id', as: 'auction' });
+Auction.hasMany(File, { as: 'files', foreignKey: 'auction_id' });
+
 
 // Lot → Offer
 Lot.hasMany(Offer, { foreignKey: 'lot_id', as: 'offers' });
@@ -34,6 +36,7 @@ User.hasMany(File, { as: 'files', foreignKey: 'user_id' });
 
 // File
 File.belongsTo(User, { as: 'user', foreignKey: 'user_id' });
+File.belongsTo(Auction, { as: 'auction', foreignKey: 'auction_id' });
 
 // Lot.belongsTo(Offer, { as: 'winner_offer', foreignKey: 'winner_offer_id' });
 // Offer.hasOne(Lot, { as: 'won_lot', foreignKey: 'winner_offer_id' });

@@ -28,6 +28,10 @@ const Lot = sequelize.define('Lot', {
     type: DataTypes.ENUM('open','finished','expired'),
     defaultValue: 'open',
   },
+  term_month: {
+    type: DataTypes.STRING,
+    allowNull: true,
+  },
 }, {
   timestamps: true,
 });

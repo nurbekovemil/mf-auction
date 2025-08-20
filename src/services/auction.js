@@ -328,6 +328,7 @@ exports.getAuctionReport = async (req, res) => {
           {
             model: Offer,
             as: 'offers',
+            where: { status: 'accepted' },
             include: [
               {
                 model: User,
@@ -375,11 +376,12 @@ exports.getAuctionReport = async (req, res) => {
   const offersTable = auction.lots.flatMap(lot =>
     lot.offers.map(o => ({
       bank: o.user.user_info?.bank_name || o.user.name,
-      lotNumber: lot.id,
+      lotId: lot.id,
+      lotAsset: lot.asset,
+      lotPercent: lot.percent,
+      lotTermMonth: lot.term_month,
       depositAmount: o.volume,
-      depositTerm: o.term_months,
-      startPercent: o.percent,
-      combankRate: o.combank_rate
+      offerPercent: o.percent
     }))
   );
 
@@ -388,11 +390,11 @@ const dealsTable = auction.lots.flatMap(lot =>
   (lot.offers || []).flatMap(offer =>
     (offer.Deal ? [{
       bank: offer.user?.user_info?.bank_name || offer.user?.name || '—',
-      lotNumber: lot.id,
+      lotId: lot.id,
+      lotAsset: lot.asset,
       depositAmount: offer.Deal.amount,
       depositTerm: lot.term_months,
-      startPercent: offer.Deal.percent,
-      combankRate: offer.combank_rate
+      percent: offer.Deal.percent,
     }] : [])
   )
 );

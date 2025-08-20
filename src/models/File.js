@@ -7,8 +7,8 @@ const File = sequelize.define('File', {
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
   },
-  url: {
-    type: DataTypes.STRING,
+  auction_id: {
+    type: DataTypes.UUID,
     allowNull: false,
   },
   user_id: {
@@ -16,6 +16,10 @@ const File = sequelize.define('File', {
     allowNull: false,
   },
   file_type: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  url: {
     type: DataTypes.STRING,
     allowNull: false,
   },
