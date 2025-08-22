@@ -282,7 +282,7 @@ exports.checkForOwnAuction = async (auction_id, user_id) => {
 
 exports.approveParticipant = async (auction_id, user_id, initiator_id, status) => {
   try {
-    console.log('🟢 approveParticipant', auction_id, user_id, initiator_id, status)
+    
     // Проверяем, инициатор ли текущий пользователь
     const auction = await Auction.findByPk(auction_id);
     if (!auction) {

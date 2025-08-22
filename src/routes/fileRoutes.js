@@ -5,11 +5,11 @@ const {auth} = require('../middlewares/authMiddleware');
 const upload = require('../middlewares/fileMiddleware');
 
 router.get('/my-list', auth, fileService.getMyFileList);
-router.get('/:id/list', auth, fileService.getUserFileList);
+router.get('/type/list', auth, fileService.getFileTypes);
+router.get('/:id/user-list', auth, fileService.getUserFileList);
 router.post('/create', auth, upload.single('file'), fileService.createFile);
 // router.put('/:id/update', auth, fileService.updateFile);
 
-router.get('/type/list', auth, fileService.getFileTypes);
 router.post('/type/create', auth, fileService.createFileType);
 
 module.exports = router;
