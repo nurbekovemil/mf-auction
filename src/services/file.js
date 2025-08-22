@@ -87,4 +87,23 @@ exports.getFileTypes = async (req, res) => {
   }
 }
 
+exports.getAuctionFileList = async (req, res) => {
+  const auction_id = req.params.id;
+  try {
+    const files = await Auction.findAll({
+        where: { id: auction_id },
+        attributes: ['id', 'asset'],
+        include: [
+            {
+                model: File,
+                as: 'files',
+            },
+        ],
+    })
+    return res.json(files);
+  } catch (err) {
+    throw new Error(JSON.stringify({ message: 'Ошибка при получении списка файлов', error: err.message }));
+  }
+}
+
 

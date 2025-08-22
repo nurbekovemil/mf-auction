@@ -6,6 +6,7 @@ const upload = require('../middlewares/fileMiddleware');
 
 router.get('/my-list', auth, fileService.getMyFileList);
 router.get('/type/list', auth, fileService.getFileTypes);
+router.get('/auction/:id/files', auth, fileService.getAuctionFileList);
 router.get('/:id/user-list', auth, fileService.getUserFileList);
 router.post('/create', auth, upload.single('file'), fileService.createFile);
 // router.put('/:id/update', auth, fileService.updateFile);

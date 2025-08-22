@@ -328,7 +328,7 @@ exports.getAuctionReport = async (req, res) => {
           {
             model: Offer,
             as: 'offers',
-            where: { status: 'accepted' },
+            // where: { status: 'accepted' },
             include: [
               {
                 model: User,
@@ -392,9 +392,10 @@ const dealsTable = auction.lots.flatMap(lot =>
       bank: offer.user?.user_info?.bank_name || offer.user?.name || '—',
       lotId: lot.id,
       lotAsset: lot.asset,
+      lotPercent: lot.percent,
+      lotTermMonth: lot.term_month,
       depositAmount: offer.Deal.amount,
-      depositTerm: lot.term_months,
-      percent: offer.Deal.percent,
+      offerPercent: offer.percent
     }] : [])
   )
 );
